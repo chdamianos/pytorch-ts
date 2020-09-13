@@ -104,15 +104,22 @@ else:
 # Get yearly autocorrelation for each timeseries
 scale_map = {}
 scaled_data = pd.DataFrame()
-for store_item_id, item_data in tqdm(data.groupby('store_item_id', as_index=False)):
+# go through each store/item
+for store_item_id, item_data in data.groupby('store_item_id', as_index=False):
+    # get sales data for specific store/item from TRAIN DATA
     sidata = scale_data.loc[scale_data['store_item_id'] == store_item_id, 'sales']
     mu = sidata.mean()
     sigma = sidata.std()
+    # get yearly ACF of specific store/item
     yearly_autocorr = get_yearly_autocorr(sidata)
+    # scale sales based on mu/std from TRAIN DATA
     item_data.loc[:, 'sales'] = (item_data['sales'] - mu) / sigma
+    # save scaling record in dict
     scale_map[store_item_id] = {'mu': mu, 'sigma': sigma}
+    # add average sales and yearly autocorellation as features
     item_data['mean_sales'] = mu
     item_data['yearly_corr'] = yearly_autocorr
+    # append data to main features dataframe
     scaled_data = pd.concat([scaled_data, item_data], ignore_index=True)
 scaled_data['yearly_corr'] = (
         (scaled_data['yearly_corr'] - scaled_data['yearly_corr'].mean()) / scaled_data['yearly_corr'].std())
@@ -121,6 +128,7 @@ scaled_data['mean_sales'] = (scaled_data['mean_sales'] - scaled_data['mean_sales
 scaled_data = reduce_mem_usage(scaled_data)
 scaled_data.to_pickle('./data/processed_data_test_stdscaler.pkl')
 # create sequence data
+# HERE
 sequence_data = ts_utils.sequence_builder.sequence_builder(scaled_data, 180, 90,
                                                            'store_item_id',
                                                            ['sales', 'dayofweek_sin', 'dayofweek_cos', 'month_sin',

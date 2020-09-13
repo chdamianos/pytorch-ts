@@ -8,9 +8,10 @@ from collections import defaultdict
 
 tqdm.tqdm().pandas()
 
+
 def reduce_mem_usage(df, verbose=True):
     numerics = ['int16', 'int32', 'int64', 'float16', 'float32', 'float64']
-    start_mem = df.memory_usage().sum() / 1024**2    
+    start_mem = df.memory_usage().sum() / 1024 ** 2
     for col in df.columns:
         col_type = df[col].dtypes
         if col_type in numerics:
@@ -24,17 +25,18 @@ def reduce_mem_usage(df, verbose=True):
                 elif c_min > np.iinfo(np.int32).min and c_max < np.iinfo(np.int32).max:
                     df[col] = df[col].astype(np.int32)
                 elif c_min > np.iinfo(np.int64).min and c_max < np.iinfo(np.int64).max:
-                    df[col] = df[col].astype(np.int64)  
+                    df[col] = df[col].astype(np.int64)
             else:
                 if c_min > np.finfo(np.float16).min and c_max < np.finfo(np.float16).max:
                     df[col] = df[col].astype(np.float16)
                 elif c_min > np.finfo(np.float32).min and c_max < np.finfo(np.float32).max:
                     df[col] = df[col].astype(np.float32)
                 else:
-                    df[col] = df[col].astype(np.float64)    
-    end_mem = df.memory_usage().sum() / 1024**2
+                    df[col] = df[col].astype(np.float64)
+    end_mem = df.memory_usage().sum() / 1024 ** 2
     if verbose:
-        print('Mem. usage decreased to {:5.2f} Mb ({:.1f}% reduction)'.format(end_mem, 100 * (start_mem - end_mem) / start_mem))
+        print('Mem. usage decreased to {:5.2f} Mb ({:.1f}% reduction)'.format(end_mem,
+                                                                              100 * (start_mem - end_mem) / start_mem))
     return df
 
 
@@ -52,13 +54,14 @@ def split_sequence_difference(group_data, n_steps_in, n_steps_out, x_cols, y_col
             end_ix = i + n_steps_in
             out_end_ix = end_ix + n_steps_out
             # check if we are beyond the dataset
-            if out_end_ix > len(group_data)-1:
+            if out_end_ix > len(group_data) - 1:
                 break
             y_base = group_data.iloc[end_ix - 1]['unmod_y']
             # gather input and output parts of the pattern
             if len(x_cols) == 1:
                 x_cols = x_cols[0]
-            seq_x, seq_y = group_data.iloc[i:end_ix, :][x_cols].values, group_data.iloc[end_ix:out_end_ix, :][y_col].values
+            seq_x, seq_y = group_data.iloc[i:end_ix, :][x_cols].values, group_data.iloc[end_ix:out_end_ix, :][
+                y_col].values
             for col in additional_columns:
                 additional_col_map[col].append(group_data.iloc[end_ix][col])
             additional_col_map['x_base'].append(x_base)
@@ -72,6 +75,7 @@ def split_sequence_difference(group_data, n_steps_in, n_steps_out, x_cols, y_col
         print(e)
         print(group_data.shape)
         traceback.print_exc()
+
 
 # split a multivariate sequence into samples
 def split_sequences(group_data, n_steps_in, n_steps_out, x_cols, y_cols, additional_columns, step=1, lag_fns=[]):
@@ -93,7 +97,8 @@ def split_sequences(group_data, n_steps_in, n_steps_out, x_cols, y_cols, additio
         # gather input and output parts of the pattern
         if len(x_cols) == 1:
             x_cols = x_cols[0]
-        seq_x, seq_y = group_data.iloc[i:end_ix, :][x_cols].values, group_data.iloc[end_ix:out_end_ix, :][y_cols + [f'lag_{i}' for i in range(len(lag_fns))]].values
+        seq_x, seq_y = group_data.iloc[i:end_ix, :][x_cols].values, group_data.iloc[end_ix:out_end_ix, :][
+            y_cols + [f'lag_{i}' for i in range(len(lag_fns))]].values
         for col in additional_columns:
             additional_col_map[col].append(group_data.iloc[end_ix][col])
         X.append(seq_x)
@@ -101,10 +106,12 @@ def split_sequences(group_data, n_steps_in, n_steps_out, x_cols, y_cols, additio
     additional_column_items = sorted(additional_col_map.items(), key=lambda x: x[0])
     return (np.array(X), np.array(y), *[i[1] for i in additional_column_items])
 
+
 def _apply_df(args):
     df, func, key_column = args
     result = df.groupby(key_column).progress_apply(func)
     return result
+
 
 def almost_equal_split(seq, num):
     avg = len(seq) / float(num)
@@ -124,7 +131,9 @@ def mp_apply(df, func, key_column):
     result = process_map(_apply_df, [(d, func, key_column) for d in split_dfs], max_workers=workers)
     return pd.concat(result)
 
-def sequence_builder(data, n_steps_in, n_steps_out, key_column, x_cols, y_col, y_cols, additional_columns, diff=False, lag_fns=[], step=1):
+
+def sequence_builder(data, n_steps_in, n_steps_out, key_column, x_cols, y_col, y_cols, additional_columns, diff=False,
+                     lag_fns=[], step=1):
     if diff:
         # multiple y_cols not supported yet
         sequence_fn = partial(
@@ -160,14 +169,18 @@ def sequence_builder(data, n_steps_in, n_steps_out, key_column, x_cols, y_col, y
             key_column
         )
     sequence_data = pd.DataFrame(sequence_data, columns=['result'])
-    s = sequence_data.apply(lambda x: pd.Series(zip(*[col for col in x['result']])), axis=1).stack().reset_index(level=1, drop=True)
+    s = sequence_data.apply(lambda x: pd.Series(zip(*[col for col in x['result']])), axis=1).stack().reset_index(
+        level=1, drop=True)
     s.name = 'result'
     sequence_data = sequence_data.drop('result', axis=1).join(s)
     sequence_data['result'] = pd.Series(sequence_data['result'])
     if diff:
-        sequence_data[['x_sequence', 'y_sequence'] + sorted(set([key_column] + additional_columns + ['x_base', 'y_base', 'mean_traffic']))] = pd.DataFrame(sequence_data.result.values.tolist(), index=sequence_data.index)
+        sequence_data[['x_sequence', 'y_sequence'] + sorted(
+            set([key_column] + additional_columns + ['x_base', 'y_base', 'mean_traffic']))] = pd.DataFrame(
+            sequence_data.result.values.tolist(), index=sequence_data.index)
     else:
-        sequence_data[['x_sequence', 'y_sequence'] + sorted(set([key_column] + additional_columns))] = pd.DataFrame(sequence_data.result.values.tolist(), index=sequence_data.index)
+        sequence_data[['x_sequence', 'y_sequence'] + sorted(set([key_column] + additional_columns))] = pd.DataFrame(
+            sequence_data.result.values.tolist(), index=sequence_data.index)
     sequence_data.drop('result', axis=1, inplace=True)
     if key_column in sequence_data.columns:
         sequence_data.drop(key_column, axis=1, inplace=True)
@@ -179,14 +192,17 @@ def sequence_builder(data, n_steps_in, n_steps_out, key_column, x_cols, y_col, y
 
 def last_year_lag(col): return (col.shift(364) * 0.25) + (col.shift(365) * 0.5) + (col.shift(366) * 0.25)
 
+
 if __name__ == '__main__':
     data = reduce_mem_usage(pd.read_pickle('../data/processed_data_test_stdscaler.pkl'))
-    sequence_data = sequence_builder(data, 180, 90, 
-        'store_item_id', 
-        ['sales', 'dayofweek_sin', 'dayofweek_cos', 'month_sin', 'month_cos', 'year_mod', 'day_sin', 'day_cos'], 
-        'sales', 
-        ['sales', 'dayofweek_sin', 'dayofweek_cos', 'month_sin', 'month_cos', 'year_mod', 'day_sin', 'day_cos'],
-        ['item', 'store', 'date', 'yearly_corr'],
-        lag_fns=[last_year_lag]
-    )
+    sequence_data = sequence_builder(data, 180, 90,
+                                     'store_item_id',
+                                     ['sales', 'dayofweek_sin', 'dayofweek_cos', 'month_sin', 'month_cos', 'year_mod',
+                                      'day_sin', 'day_cos'],
+                                     'sales',
+                                     ['sales', 'dayofweek_sin', 'dayofweek_cos', 'month_sin', 'month_cos', 'year_mod',
+                                      'day_sin', 'day_cos'],
+                                     ['item', 'store', 'date', 'yearly_corr'],
+                                     lag_fns=[last_year_lag]
+                                     )
     sequence_data.to_pickle('../sequence_data/sequence_data_stdscaler_test.pkl')

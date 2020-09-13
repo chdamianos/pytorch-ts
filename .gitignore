@@ -1,4 +1,5 @@
 # ignore data folders
+.idea
 data
 sequence_data
 runs

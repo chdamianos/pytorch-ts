@@ -198,7 +198,7 @@ class TorchTrainer():
             optimizer = torch.optim.SGD(self.model.parameters(), lr=1e-6, momentum=0.9)
         lr_finder = LRFinder(self.model, optimizer, self.loss_fn, device=self.device)
         lr_finder.range_test(dl, start_lr=start_lr, end_lr=end_lr, num_iter=num_iter)
-        lr_finder.plot()
+        # lr_finder.plot()
         
     def train(self, epochs, train_dataloader, valid_dataloader=None, resume=True, resume_only_model=False):
         start_epoch = 0

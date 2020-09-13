@@ -190,4 +190,9 @@ in the **train data**
 scaled_data = reduce_mem_usage(scaled_data)
 ```
 ### create sequences
-HERE!
+TODO:
+* place break point before return of `mp_apply` in `ts_utils/sequence_builder.py`
+    * this is the result of applying function `split_sequences` in `ts_utils/sequence_builder.py`
+    on the features dataframe (i.e. `data` in call of `sequence_builder`) grouped by store/item 
+    (`key_column="store_item_id"`)
+    * see docstring of `split_sequences` in `ts_utils/sequence_builder.py` to get started

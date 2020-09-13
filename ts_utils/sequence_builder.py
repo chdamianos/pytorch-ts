@@ -79,6 +79,11 @@ def split_sequence_difference(group_data, n_steps_in, n_steps_out, x_cols, y_col
 
 # split a multivariate sequence into samples
 def split_sequences(group_data, n_steps_in, n_steps_out, x_cols, y_cols, additional_columns, step=1, lag_fns=[]):
+    """
+    This function splits the dataframe of a specific store/item into two parts: past and future based on an index `end_ix`
+    this is repeated at multiple times with `end_ix` being incremented until the data limit is reached
+    The past/future arrays are saved in X and y lists which are then turned to arrays when returned
+    """
     X, y = list(), list()
     additional_col_map = defaultdict(list)
     group_data = group_data.sort_values('date')
@@ -126,8 +131,15 @@ def almost_equal_split(seq, num):
 def mp_apply(df, func, key_column):
     workers = 6
     # pool = mp.Pool(processes=workers)
+    # key_splits splits the store/item timeseries keys into "almost equal" chunks
+    # to be processed by each worker
+    # for example is almost_equal_split(['1_1','1_2','1_3','1_4','1_5','1_6','1_7','1_8','1_9'], 3)
+    # results in 3 lists for keys to be processed by each worker such as
+    # [['1_1', '1_2', '1_3'], ['1_4', '1_5', '1_6'], ['1_7', '1_8', '1_9']]
     key_splits = almost_equal_split(df[key_column].unique(), workers)
+    # list of dataframes each containing keys in key_splits
     split_dfs = [df[df[key_column].isin(key_list)] for key_list in key_splits]
+    # apply func to each dataframes in split_dfs, see `_apply_df`
     result = process_map(_apply_df, [(d, func, key_column) for d in split_dfs], max_workers=workers)
     return pd.concat(result)
 

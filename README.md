@@ -295,17 +295,17 @@ using the `StoreItemDataset` class
           heatues + the numerical features. 
          * The second the `decoder_input` which has shape `[90, 9]`. 
          `decoder_input` includes the `y_sequence` features except the FIRST one which
-         is the sales in the future (what we are trying to predict)
+         is the sales in the future (what we are trying to predict).
          The rest of the "y" features are data we know 
          (`['dayofweek_sin', 'dayofweek_cos', 'month_sin', 'month_cos', 'year_mod', 'day_sin', 'day_cos']`)
-         so we CAN include is in the input of the model
+         so we CAN include these data in the input of the model
          (at this point the shape of `decoder_input` is `[90, 8]`)
          (see `decoder_input = torch.tensor(row['y_sequence'].values[0][:, 1:], dtype=torch.float32)`)
-          but adding the numerical features                 
+          Adding the numerical features with             
             ```python
             decoder_input = torch.cat((decoder_input, num_tensor.repeat(decoder_input.size(0)).unsqueeze(1)), axis=1)
             ```
-           the shape of `decoder_input` after this is `[90,9]`.
+           the shape of `decoder_input` becomes `[90,9]`.
      * `__getitem__` also returns `y` which is the sales in the "future" and 
      its shape is `[90]` 
 ## TODO

@@ -88,7 +88,9 @@ class StoreItemDataset(Dataset):
         if len(self.num_columns) > 0:
             for col in self.num_columns:
                 num_tensor = torch.tensor([row[col].values[0]], dtype=torch.float32)
-                x_inputs[0] = torch.cat((x_inputs[0], num_tensor.repeat(x_inputs[0].size(0)).unsqueeze(1)), axis=1)
+                num_tensor_repeat = num_tensor.repeat(x_inputs[0].size(0))
+                num_tensor_repeat_add_dim = num_tensor_repeat.unsqueeze(1)
+                x_inputs[0] = torch.cat((x_inputs[0], num_tensor_repeat_add_dim), axis=1)
                 decoder_input = torch.cat((decoder_input, num_tensor.repeat(decoder_input.size(0)).unsqueeze(1)),
                                           axis=1)
         if len(self.cat_columns) > 0:

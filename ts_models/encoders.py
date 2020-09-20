@@ -97,8 +97,6 @@ class RNNEncoder(nn.Module):
         if input_seq.ndim < 3:
             input_seq.unsqueeze_(2)
         gru_out, hidden = self.gru(input_seq, ht)
-        print(gru_out.shape)
-        print(hidden.shape)
         if self.rnn_directions * self.num_layers > 1:
             num_layers = self.rnn_directions * self.num_layers
             if self.rnn_directions > 1:

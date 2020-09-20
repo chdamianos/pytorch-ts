@@ -190,6 +190,27 @@ in the **train data**
 scaled_data = reduce_mem_usage(scaled_data)
 ```
 ### create sequences
+* final data
+```
+        date  store  item     sales store_item_id  dayofweek  month  year  \
+0 2013-01-01     10     1 -1.479492          10_1          1      1  2013   
+1 2013-01-02     10     1 -1.479492          10_1          2      1  2013   
+2 2013-01-03     10     1 -1.228516          10_1          3      1  2013   
+3 2013-01-04     10     1 -1.102539          10_1          4      1  2013   
+4 2013-01-05     10     1 -1.731445          10_1          5      1  2013   
+   day  year_mod  dayofweek_sin  dayofweek_cos  month_sin  month_cos  \
+0    1       0.0       0.781738       0.623535        0.5   0.866211   
+1    2       0.0       0.975098      -0.222534        0.5   0.866211   
+2    3       0.0       0.433838      -0.900879        0.5   0.866211   
+3    4       0.0      -0.433838      -0.900879        0.5   0.866211   
+4    5       0.0      -0.975098      -0.222534        0.5   0.866211   
+    day_sin   day_cos  mean_sales  yearly_corr  
+0  0.201294  0.979492   -1.144531    -1.151367  
+1  0.394287  0.918945   -1.144531    -1.151367  
+2  0.571289  0.820801   -1.144531    -1.151367  
+3  0.724609  0.688965   -1.144531    -1.151367  
+4  0.848633  0.528809   -1.144531    -1.151367  
+```
 TODO:
 * place break point before return of `mp_apply` in `ts_utils/sequence_builder.py`
     * this is the result of applying function `split_sequences` in `ts_utils/sequence_builder.py`

@@ -228,7 +228,7 @@ trainer = TorchTrainer(
     # additional_metric_fns={'SMAPE': smape_exp_loss}
 )
 
-trainer.lr_find(train_dataloader, model_optimizer, start_lr=1e-5, end_lr=1e-2, num_iter=50)
+trainer.lr_find(train_dataloader, model_optimizer, start_lr=1e-5, end_lr=1e-2, num_iter=500)
 
 vd = valid_dataloader if mode == 'valid' else None
 trainer.train(6, train_dataloader, vd, resume_only_model=True, resume=False)

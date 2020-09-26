@@ -308,6 +308,226 @@ using the `StoreItemDataset` class
            the shape of `decoder_input` becomes `[90,9]`.
      * `__getitem__` also returns `y` which is the sales in the "future" and 
      its shape is `[90]` 
-## TODO
-place breakpoint in `forward` method of `EncoderDecoderWrapper` 
-of `ts_models/encoder_decoder.py` and go through the model structure
+## Encoder (`RNNEncoder`@`ts_models/encoders.py`)
+### Input
+The input to the encoder is a batch of the `[180, 71]` input tensor so the shape would be `[256,180,71]` for a batch size of 256, time steps in the past is `180` and number of features is 
+`71`.
+### Model Init
+```python
+super().__init__()
+self.sequence_len = sequence_len
+self.hidden_size = hidden_size
+self.input_feature_len = input_feature_len
+self.num_layers = rnn_num_layers
+self.rnn_directions = 2 if bidirectional else 1
+self.gru = nn.GRU(
+    num_layers=rnn_num_layers,
+    input_size=input_feature_len,
+    hidden_size=hidden_size,
+    batch_first=True,
+    bidirectional=bidirectional,
+    dropout=rnn_dropout
+)
+self.device = device
+```
+* `self.sequence_len` is the number of input time steps so 
+`180` 
+* `self.hidden_size` is the number of features of the hidden state (**hyperparameter**)
+* `self.input_feature_len` is the number of input features so `71` in this case
+* `self.num_layers` number of layers, number of GRU units stacked (e.g. if `2` then the ouput of the first GRU goes into the input of the second GRU and the output of the second GRU is the final output) (**hyperparameter**)
+* `self.rnn_directions` integer that indicates if GRU is bidirectional 
+* `bidirectional` boolean to indicate if GRU is bidirectional, if True then the input sequence is fed into the GRU in the order and reverse-order
+* `rnn_dropout` dropout
+* `batch_first` If True, then the input and output tensors are provided as `[batch, seq, feature]`. 
+### Initialize hidden state to zeros
+```python
+ht = torch.zeros(self.num_layers * self.rnn_directions, input_seq.size(0), self.hidden_size, device=self.device)
+```
+shape is `[1, 256, 100]`
+this is based on the documentation see
+https://pytorch.org/docs/stable/generated/torch.nn.GRU.html 
+### Input sequence
+The input_sequence is `[256, 180, 71]` so `[batch, seq, feature]` because of  `batch_first=True` otherwise the default is `[seq, batch, feature)]` 
+### Output (`gru_out`)
+The output shape is `[256, 180, 100]` so `[batch, seq, hidden_size]`
+### hidden state (`hidden`)
+* The output hidden shape is `[1, 256, 100]` same as input hidden state
+* before return is squeezed to `[256,100]`
+### If `bidirectional=True`
+#### Initialize hidden state to zeros
+shape is now `[2, 256, 100]`
+#### Input sequence
+The input_sequence is still `[256, 180, 71]` 
+#### Output (`gru_out`)
+The output shape is now  `[256, 180, 200]` 
+So the output doubles in size since we are passing the input sequence twice through the GRU
+#### hidden state (`hidden`)
+* The output hidden shape is `[2, 256, 100]` same as input hidden state
+#### Modify `gru_out`
+* reshape to `[256, 180,2,100]`
+* sum dim=2 and the shape is `[256, 180,100]`
+#### Modify `hidden`
+* reshape to `[1,2,256,100]`
+    ```python
+    hidden = hidden.view(self.num_layers, self.rnn_directions, input_seq.size(0), self.hidden_size)
+    ```
+* drop dim=0 to make shape `[2,256,100]`
+    ```python
+    hidden = hidden[-1]
+    ```
+* sum over dim = 0 to make shape `[256,100]`
+    ```python
+    hidden = hidden.sum(axis=0)
+    ```
+## Decoder
+### Decoder Input (`EncoderDecoderWrapper`@`ts_models/encoder_decoder.py`)
+#### Previous hidden state
+The first previous hidden state of the decoder is the encoder output hidden state
+```python
+prev_hidden = encoder_hidden
+```
+#### `outputs`
+Initialize an tensor to keep track of the decoder output of shape `[256,90]` `[batch_size, output_size]` 
+```python
+outputs = torch.zeros(input_seq.size(0), self.output_size, device=self.device)
+```
+#### previous sequence input
+this is the last "sales" from the `input_seq` with shape `[256,1]`
+```python
+y_prev = input_seq[:, -1, 0].unsqueeze(1)
+```
+### Loop through output size steps (i.e. `90`)
+* concatenate `y_prev` with the decoder input for that time step (`decoder_input`). Remember that `decoder_input`are features we know about the output like day of the week, etc.
+```python
+step_decoder_input = torch.cat((y_prev, decoder_input[:, i]), axis=1)
+```
+the shape is `[256,1](+)[256,9]=[256,10]`
+#### Run `prev_hidden` and `step_decoder_input` through decoder
+```python
+rnn_output, prev_hidden = self.decoder_cell(prev_hidden, step_decoder_input)
+```
+##### Initialized decoder
+```python
+self.decoder_rnn_cell = nn.GRUCell(
+    input_size=input_feature_len,
+    hidden_size=hidden_size,
+)
+self.out = nn.Linear(hidden_size, 1)
+self.attention = False
+self.dropout = nn.Dropout(dropout)
+```
+* `input_feature_len` is the input to decoder with shape `[256,10]`
+* `hidden_size` is the number of features of the hidden state default `100` (**hyperparameter**)
+* `self.out` Linear layer with units same as `hidden_size` to return a single value (i.e. `target`)
+* `self.dropout` see https://pytorch.org/docs/stable/generated/torch.nn.Dropout.html
+  ```
+  During training, randomly zeroes some of the elements of the input tensor with probability p using samples from a Bernoulli distribution. 
+  ``` 
+##### Forward
+* run through `GRUCell`
+    * Single GRU cell that returns hidden state
+    ```python
+    rnn_hidden = self.decoder_rnn_cell(y, prev_hidden)
+    ```
+    * `y` has shape `[256,10]` (`step_decoder_input`)
+    * `prev_hidden` has shape `[256,100]`
+    * `rnn_hidden` has shape `[256,100]`
+* Pass output hidden state through Linear layer
+  ```python
+  output = self.out(rnn_hidden)
+  ```
+* Apply Dropout to hidden state and return
+  ```python
+  return output, self.dropout(rnn_hidden)
+  ```
+##### Assign next values of decoder input
+```python
+rnn_output, prev_hidden = self.decoder_cell(prev_hidden, step_decoder_input)
+y_prev = rnn_output
+```
+`rnn_output` has shape `[256,1]`
+`prev_hidden` has shape `[256,100]`
+##### Save output results
+```python
+outputs[:, i] = rnn_output.squeeze(1)
+```
+## Decoder with attention (`AttentionDecoderCell` in `ts_models/decoders.py`)
+### Concatenate previous hidden state and encoder input
+* `prev_hidden` shape is `[256, 100]`
+* `y` shape is `[256, 10]`
+* result is assigned to `attention_input` with shape `[256, 110]`
+### Apply sotfmax/linear layer
+```python
+attention_weights = F.softmax(self.attention_linear(attention_input)).unsqueeze(1)
+```
+`self.attention_linear` is a linear layer with shape
+initialized with 
+```python
+self.attention_linear = nn.Linear(hidden_size + input_feature_len, sequence_len)
+attention_weights = F.softmax(self.attention_linear(attention_input)).unsqueeze(1)
+```
+where `input_feature_len=10`, `hidden_size=100`, `sequence_len=180` it "transforms" the hidden+decoder input 
+(`[256, 110]`) to the input features size (`[256,180`) but also unsqueeze to `[256, 1, 180]` to be satisfy the requiments of `torch.bmm`
+### Apply attention
+#### Attention weights
+`attention_weights` have shape `[256, 1, 180]`
+#### Encoder output
+* The encoder output has shape `[256, 180, 100]` with 180 being each time step. We want to learn to which output feature of the encoder to pay the most attention.
+* `dim=1` has the features at each time step, we want to learn at which time step to pay the most "attention"
+* so we want to multiply each time step with the attention weights and sum this can be done by `torch.bmm`
+    ```python
+    attention_combine = torch.bmm(attention_weights, encoder_output).squeeze(1)
+    ```
+    the result has shape `[256, 100]`
+#### Combine with decoder input
+* based on https://pytorch.org/tutorials/intermediate/seq2seq_translation_tutorial.html also see https://github.com/chdamianos/pytorch_attn_seq
+##### Concatenate
+```python
+combine_attention_decoder_input_tensor1 = torch.cat((attention_combine, y), axis=1)
+```
+##### Apply Linear/relu
+```python
+combine_attention_decoder_input_tensor2 = F.relu(self.combine_attention_decoder_input(combine_attention_decoder_input_tensor1))
+```
+##### Result
+shape is `[256,100]`
+#### Run through GRUcell
+```python
+rnn_hidden = self.decoder_rnn_cell(combine_attention_decoder_input_tensor2, prev_hidden)
+```
+result has shape `[256,100]`
+#### Output 
+A Linear layer is applied to get what we want to predict which is a number for each batch entry 
+```python
+output = self.out(rnn_hidden)
+```
+`output` has shape `[256, 1]`
+#### Return
+applie dropout to hidden state and return
+```python
+return output, self.dropout(rnn_hidden)
+```
+## Overall training scheme
+* Training takes place in `torch_utils/trainer.py` in the `train` method of the `TorchTrainer` class
+* Specifically the model is used in the method `_loss_batch` 
+  1. Run model and return `y_pred`
+        ```python
+        y_pred = self.model(xb, yb)
+        ``` 
+  2. Calculate loss
+        ```python
+        loss = self.loss_fn(y_pred, yb)
+        ``` 
+  3. Optimize
+      1. Step loss
+            ```python
+            loss.backward()
+            ```
+      2. Step optimize
+         1. call `_step_optim`
+         2. Can call multiple optimizers!
+             ```python
+            for i in range(len(self.optimizer)):
+                self.optimizer[i].step()
+                self.optimizer[i].zero_grad()
+            ``` 

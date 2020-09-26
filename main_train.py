@@ -9,7 +9,7 @@ from torch.utils.data import Dataset, DataLoader
 from tqdm.notebook import tqdm
 
 from torch_utils.trainer import TorchTrainer
-from ts_models.decoders import DecoderCell
+from ts_models.decoders import DecoderCell, AttentionDecoderCell
 from ts_models.encoder_decoder import EncoderDecoderWrapper
 from ts_models.encoders import RNNEncoder
 
@@ -169,10 +169,13 @@ encoder = RNNEncoder(
     rnn_dropout=0.2
 )
 
-decoder_cell = DecoderCell(
-    input_feature_len=10,
-    hidden_size=100,
-)
+# decoder_cell = DecoderCell(
+#     input_feature_len=10,
+#     hidden_size=100,
+# )
+
+decoder_cell =AttentionDecoderCell(input_feature_len=10,
+    hidden_size=100,sequence_len=180)
 
 # loss_function = differentiable_smape_loss
 # loss_function = differentiable_smape_loss
@@ -225,7 +228,7 @@ trainer = TorchTrainer(
     # additional_metric_fns={'SMAPE': smape_exp_loss}
 )
 
-trainer.lr_find(train_dataloader, model_optimizer, start_lr=1e-5, end_lr=1e-2, num_iter=500)
+trainer.lr_find(train_dataloader, model_optimizer, start_lr=1e-5, end_lr=1e-2, num_iter=50)
 
 vd = valid_dataloader if mode == 'valid' else None
-trainer.train(6, train_dataloader, vd, resume_only_model=True, resume=True)
+trainer.train(6, train_dataloader, vd, resume_only_model=True, resume=False)

@@ -35,7 +35,10 @@ class EncoderDecoderWrapper(nn.Module):
             step_decoder_input = torch.cat((y_prev, decoder_input[:, i]), axis=1)
             if (yb is not None) and (i > 0) and (torch.rand(1) < self.teacher_forcing):
                 step_decoder_input = torch.cat((yb[:, i].unsqueeze(1), decoder_input[:, i]), axis=1)
-            rnn_output, prev_hidden = self.decoder_cell(prev_hidden, step_decoder_input)
+            if "attention" in self.decoder_cell._get_name().lower():
+                rnn_output, prev_hidden = self.decoder_cell(encoder_output, prev_hidden, step_decoder_input)
+            else:
+                rnn_output, prev_hidden = self.decoder_cell(prev_hidden, step_decoder_input)
             y_prev = rnn_output
             outputs[:, i] = rnn_output.squeeze(1)
         return outputs
